@@ -2,14 +2,56 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
 import 'package:todo_nodejs/config.dart';
-import 'package:todo_nodejs/home.dart';
+import 'package:todo_nodejs/screen/home.dart';
+import 'package:todo_nodejs/screen/login.dart';
+import 'package:todo_nodejs/widgets/signinForm.dart';
+
+import '../provider/auth_provider.dart';
 // TODO: add flutter_svg package
 
-
-class SignInScreen extends StatelessWidget {
+class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
+
+  @override
+  State<SignInScreen> createState() => _SignInScreenState();
+}
+
+class _SignInScreenState extends State<SignInScreen> {
+  final TextEditingController nameController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
+ final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
+Future<void> _register() async {
+    if (_formKey.currentState!.validate()) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      
+      final success = await authProvider.resgisterUser(
+        nameController.text.trim(),
+        emailController.text.trim(),
+        passwordController.text,
+        context
+      );
+
+      if (success) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => HomeScreen()),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(authProvider.error ?? 'Registration failed'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -43,7 +85,72 @@ class SignInScreen extends StatelessWidget {
                   ),
                   // const SizedBox(height: 16),
                   SizedBox(height: MediaQuery.of(context).size.height * 0.05),
-                  SignInForm(),
+                  Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
+                        TextFieldWidget(
+                          controller: nameController,
+                          hint: "Enter your name",
+                          lableText: "Name",
+                          icon: mailIcon,
+                        ),
+                        SizedBox(height: 16),
+                        TextFieldWidget(
+                          controller: emailController,
+                          hint: "Enter your email",
+                          lableText: "Email",
+                          icon: mailIcon,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your email';
+                            }
+                            if (!RegExp(
+                              r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                            ).hasMatch(value)) {
+                              return 'Please enter a valid email';
+                            }
+                            return null;
+                          },
+                        ),
+                        SizedBox(height: 16),
+                        TextFieldWidget(
+                          controller: passwordController,
+                          hint: "Enter your password",
+                          lableText: "password",
+                          icon: mailIcon,
+
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your password';
+                            }
+                            if (value.length < 6) {
+                              return 'Password must be at least 6 characters';
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  SizedBox(height: 20),
+
+                 Consumer<AuthProvider>(builder: (context,value,child){
+                  return  ElevatedButton(
+                   onPressed: value.isLoading ? null : _register,
+                    style: ElevatedButton.styleFrom(
+                      elevation: 0,
+                      backgroundColor: const Color(0xFFFF7643),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(double.infinity, 48),
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(16)),
+                      ),
+                    ),
+                    child: const Text("Continue"),
+                  );
+                 }),
                   SizedBox(height: MediaQuery.of(context).size.height * 0.2),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -66,7 +173,10 @@ class SignInScreen extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  const NoAccountText(),
+                  NoAccountText(
+                    text: "Login Here",
+                    press: () => Get.offAll(() => LoginScreen()),
+                  ),
                 ],
               ),
             ),
@@ -82,165 +192,9 @@ const authOutlineInputBorder = OutlineInputBorder(
   borderRadius: BorderRadius.all(Radius.circular(100)),
 );
 
-class SignInForm extends StatefulWidget {
-  const SignInForm({super.key});
-
-  @override
-  State<SignInForm> createState() => _SignInFormState();
-}
-
-class _SignInFormState extends State<SignInForm> {
-  final TextEditingController nameController = TextEditingController();
-    final TextEditingController emailController = TextEditingController();
-    final TextEditingController passwordController = TextEditingController();
-
-    void registerUser()async{
-      var resBody = {
-        "name": nameController.text,
-        "email": emailController.text,
-        "password": passwordController.text,
-      };
-
-      final response = await http.post(
-        Uri.parse(registerationUrl),
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: jsonEncode(resBody),
-      );
-
-  if (response.statusCode == 200 || response.statusCode == 201) {
-  var jsonReresponse = jsonDecode(response.body);
-  
-  // Success - show message and navigate
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(jsonReresponse['message'])),
-  );
-  Navigator.push(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
-  
-} else {
-  // Error
-  var jsonReresponse = jsonDecode(response.body);
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(jsonReresponse['error'] ?? 'Registration failed')),
-  );
-}
-      print("Response status: ${response.statusCode}");
-    }
-  @override
-  Widget build(BuildContext context) {
-    
-    return Form(
-      child: Column(
-        children: [
-          TextFormField(
-            onSaved: (email) {},
-            onChanged: (email) {},
-            textInputAction: TextInputAction.next,
-             controller: nameController,
-            decoration: InputDecoration(
-                hintText: "Enter your name",
-                labelText: "Email",
-               
-                floatingLabelBehavior: FloatingLabelBehavior.always,
-                hintStyle: const TextStyle(color: Color(0xFF757575)),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 16,
-                ),
-                suffix: SvgPicture.string(
-                  mailIcon,
-                ),
-                border: authOutlineInputBorder,
-                enabledBorder: authOutlineInputBorder,
-                focusedBorder: authOutlineInputBorder.copyWith(
-                    borderSide: const BorderSide(color: Color(0xFFFF7643)))),
-          ),
-          SizedBox(height: 16),
-          TextFormField(
-            onSaved: (email) {},
-            onChanged: (email) {},
-            textInputAction: TextInputAction.next,
-             controller: emailController,
-            decoration: InputDecoration(
-                hintText: "Enter your email",
-                labelText: "Email",
-               
-                floatingLabelBehavior: FloatingLabelBehavior.always,
-                hintStyle: const TextStyle(color: Color(0xFF757575)),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 16,
-                ),
-                suffix: SvgPicture.string(
-                  mailIcon,
-                ),
-                border: authOutlineInputBorder,
-                enabledBorder: authOutlineInputBorder,
-                focusedBorder: authOutlineInputBorder.copyWith(
-                    borderSide: const BorderSide(color: Color(0xFFFF7643)))),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 24),
-            child: TextFormField(
-              onSaved: (password) {},
-              onChanged: (password) {},
-              controller: passwordController,
-              obscureText: true,
-              decoration: InputDecoration(
-                  hintText: "Enter your password",
-                  labelText: "Password",
-                  floatingLabelBehavior: FloatingLabelBehavior.always,
-                  hintStyle: const TextStyle(color: Color(0xFF757575)),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 16,
-                  ),
-                  suffix: SvgPicture.string(
-                    lockIcon,
-                  ),
-                  border: authOutlineInputBorder,
-                  enabledBorder: authOutlineInputBorder,
-                  focusedBorder: authOutlineInputBorder.copyWith(
-                      borderSide: const BorderSide(color: Color(0xFFFF7643)))),
-            ),
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: () {
-              // Handle sign in logic here
-              if (nameController.text.isEmpty || emailController.text.isEmpty || passwordController.text.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Please fill all fields")),
-                );
-                return;
-              }
-             registerUser();
-             
-            },
-            style: ElevatedButton.styleFrom(
-              elevation: 0,
-              backgroundColor: const Color(0xFFFF7643),
-              foregroundColor: Colors.white,
-              minimumSize: const Size(double.infinity, 48),
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.all(Radius.circular(16)),
-              ),
-            ),
-            child: const Text("Continue"),
-          )
-        ],
-      ),
-    );
-  }
-}
-
 class SocalCard extends StatelessWidget {
-  const SocalCard({
-    Key? key,
-    required this.icon,
-    required this.press,
-  }) : super(key: key);
+  const SocalCard({Key? key, required this.icon, required this.press})
+    : super(key: key);
 
   final Widget icon;
   final VoidCallback press;
@@ -264,9 +218,10 @@ class SocalCard extends StatelessWidget {
 }
 
 class NoAccountText extends StatelessWidget {
-  const NoAccountText({
-    Key? key,
-  }) : super(key: key);
+  final String text;
+  final VoidCallback? press;
+  const NoAccountText({Key? key, required this.text, required this.press})
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -278,15 +233,8 @@ class NoAccountText extends StatelessWidget {
           style: TextStyle(color: Color(0xFF757575)),
         ),
         GestureDetector(
-          onTap: () {
-            // Handle navigation to Sign Up
-          },
-          child: const Text(
-            "Sign Up",
-            style: TextStyle(
-              color: Color(0xFFFF7643),
-            ),
-          ),
+          onTap: press,
+          child: Text(text, style: TextStyle(color: Color(0xFFFF7643))),
         ),
       ],
     );
